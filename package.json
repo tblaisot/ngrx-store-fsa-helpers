@@ -1,0 +1,55 @@
+{
+  "name": "ngrx-store-fsa-helpers",
+  "version": "1.0.0",
+  "description": "Type-safe action creator utilities for @ngrx/store",
+  "keywords": [
+    "redux",
+    "flux",
+    "typescript",
+    "action",
+    "action creator",
+    "reducer",
+    "builder",
+    "nrgx-store"
+  ],
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/tblaisot/ngrx-store-fsa-helpers.git"
+  },
+  "homepage": "https://github.com/tblaisot/ngrx-store-fsa-helpers#readme",
+  "author": "Thomas Blaisot",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rm -rf lib",
+    "build": "yarn run clean && tsc",
+    "test": "yarn run lint && tsc --noEmit && yarn run jest",
+    "jest": "jest",
+    "jest-watch": "yarn run jest -- --watch",
+    "lint": "echo 'tslint --project .'",
+    "watch": "yarn run clean && tsc --watch --sourceMap",
+    "prepublish": "yarn run clean && yarn run lint && yarn run test && yarn run build"
+  },
+  "devDependencies": {
+    "@types/jest": "^16.0.4",
+    "jest": "^18.1.0",
+    "ts-jest": "^18.0.3",
+    "tslint": "^5.0.0",
+    "typescript": "^2.1.5"
+  },
+  "jest": {
+    "transform": {
+      ".(ts|tsx)": "<rootDir>/node_modules/ts-jest/preprocessor.js"
+    },
+    "testRegex": "(/tests/.*|\\.(test|spec))\\.(ts|tsx|js)$",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js"
+    ]
+  }
+}
