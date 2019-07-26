@@ -28,7 +28,7 @@
     "clean": "rm -rf lib",
     "build": "yarn run clean && tsc",
     "test": "yarn run lint && tsc --noEmit && yarn run jest",
-    "jest": "jest",
+    "jest": "jest .*\\.spec\\.ts",
     "jest-watch": "yarn run jest -- --watch",
     "lint": "echo 'tslint --project .'",
     "watch": "yarn run clean && tsc --watch --sourceMap",
