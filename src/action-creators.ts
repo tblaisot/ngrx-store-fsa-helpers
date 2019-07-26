@@ -1,50 +1,103 @@
-import {Action as NgRxStoreAction} from "@ngrx/store";
+import { Action as NgRxStoreAction } from "@ngrx/store";
 
-export interface FSAAction<P> extends NgRxStoreAction {
+
+export interface AnyAction extends NgRxStoreAction {
+    type: any;
+}
+
+export type Meta = null | { [key: string]: any };
+
+export interface FSAAction<Payload> extends NgRxStoreAction {
     type: string;
-    payload?: P;
+    payload: Payload;
     error?: boolean;
-    meta?: Object | null;
+    meta?: Meta;
 }
 
-export interface SuccessFSAPayload<P, S> {
-    params?: P;
-    result?: S;
-}
+export type SuccessFSAPayload<Params, Result> =
+    ({ params: Params } | (Params extends void ? { params?: Params } : never)) &
+    ({ result: Result } | (Result extends void ? { result?: Result } : never));
 
-export interface FailureFSAPayload<P, E> {
-    params?: P;
-    error?: E;
-}
+export type FailureFSAPayload<Params, Error> =
+    ({ params: Params } | (Params extends void ? { params?: Params } : never)) &
+    { error: Error };
 
-export function isType<P>(action: NgRxStoreAction,
-                          actionCreator: ActionCreator<P>): action is FSAAction<P> {
+
+/**
+ * Returns `true` if action has the same type as action creator.
+ * Defines Type Guard that lets TypeScript know `payload` type inside blocks
+ * where `isType` returned `true`.
+ *
+ * @example
+ *
+ *    const somethingHappened =
+ *      actionCreator<{foo: string}>('SOMETHING_HAPPENED');
+ *
+ *    if (isType(action, somethingHappened)) {
+ *      // action.payload has type {foo: string}
+ *    }
+ */
+export function isType<Payload>(action: NgRxStoreAction,
+                                actionCreator: ActionCreator<Payload>): action is FSAAction<Payload> {
     return action.type === actionCreator.type;
 }
 
-export interface ActionCreator<P> {
+export interface ActionCreator<Payload> {
     type: string;
-    (payload?: P, meta?: Object | null): FSAAction<P>;
+
+    (payload?: Payload, meta?: Meta): FSAAction<Payload>;
 }
 
-export interface AsyncActionCreators<P, S, E> {
+export interface AsyncActionCreators<Params, Result, Error = {}> {
     type: string;
-    started: ActionCreator<P>;
-    done: ActionCreator<SuccessFSAPayload<P, S>>;
-    failed: ActionCreator<FailureFSAPayload<P, E>>;
+    started: ActionCreator<Params>;
+    done: ActionCreator<SuccessFSAPayload<Params, Result>>;
+    failed: ActionCreator<FailureFSAPayload<Params, Error>>;
 }
+
 
 export interface ActionCreatorFactory {
-    <P>(type: string, commonMeta?: Object | null,
-        error?: boolean): ActionCreator<P>;
-    <P>(type: string, commonMeta?: Object | null,
-        isError?: (payload: P) => boolean): ActionCreator<P>;
+    /**
+     * Creates Action Creator that produces actions with given `type` and payload
+     * of type `Payload`.
+     *
+     * @param type Type of created actions.
+     * @param commonMeta Metadata added to created actions.
+     * @param isError Defines whether created actions are error actions.
+     */<Payload = void>(
+        type: string, commonMeta?: Meta, isError?: boolean,
+    ): ActionCreator<Payload>;
 
-    async<P, S>(type: string,
-                commonMeta?: Object | null): AsyncActionCreators<P, S, any>;
-    async<P, S, E>(type: string,
-                   commonMeta?: Object | null): AsyncActionCreators<P, S, E>;
+    /**
+     * Creates Action Creator that produces actions with given `type` and payload
+     * of type `Payload`.
+     *
+     * @param type Type of created actions.
+     * @param commonMeta Metadata added to created actions.
+     * @param isError Function that detects whether action is error given the
+     *   payload.
+     */<Payload = void>(
+        type: string, commonMeta?: Meta,
+        isError?: (payload: Payload) => boolean,
+    ): ActionCreator<Payload>;
+
+    /**
+     * Creates three Action Creators:
+     * * `started: ActionCreator<Params>`
+     * * `done: ActionCreator<{params: Params, result: Result}>`
+     * * `failed: ActionCreator<{params: Params, error: Error}>`
+     *
+     * Useful to wrap asynchronous processes.
+     *
+     * @param type Prefix for types of created actions, which will have types
+     *   `${type}_STARTED`, `${type}_DONE` and `${type}_FAILED`.
+     * @param commonMeta Metadata added to created actions.
+     */
+    async<Params, Result, Error = {}>(
+        type: string, commonMeta?: Meta,
+    ): AsyncActionCreators<Params, Result, Error>;
 }
+
 
 declare const process: {
     env: {
@@ -52,14 +105,20 @@ declare const process: {
     };
 };
 
+/**
+ * Creates Action Creator factory with optional prefix for action types.
+ * @param prefix Prefix to be prepended to action types as `<prefix>/<type>`.
+ * @param defaultIsError Function that detects whether action is error given the
+ *   payload. Default is `payload => payload instanceof Error`.
+ */
 export function actionCreatorFactory(prefix?: string | null,
-                                     defaultIsError: (payload: any) => boolean = p => p instanceof Error,): ActionCreatorFactory {
+                                     defaultIsError: (payload: any) => boolean = p => p instanceof Error): ActionCreatorFactory {
     const actionTypes: { [type: string]: boolean } = {};
 
     const base = prefix ? `${prefix}/` : "";
 
-    function actionCreator<P>(type: string, commonMeta?: Object | null,
-                              isError: ((payload: P) => boolean) | boolean = defaultIsError,): ActionCreator<P> {
+    function actionCreator<Payload>(type: string, commonMeta?: Meta,
+                                    isError: ((payload: Payload) => boolean) | boolean = defaultIsError,): ActionCreator<Payload> {
         const fullType = base + type;
 
         if (process.env.NODE_ENV !== 'production') {
@@ -70,8 +129,8 @@ export function actionCreatorFactory(prefix?: string | null,
         }
 
         return Object.assign(
-            (payload: P, meta?: Object | null) => {
-                const action: FSAAction<P> = {
+            (payload: Payload, meta?: Meta) => {
+                const action: FSAAction<Payload> = {
                     type: fullType,
                     payload,
                 };
@@ -86,16 +145,25 @@ export function actionCreatorFactory(prefix?: string | null,
 
                 return action;
             },
-            {type: fullType},
-        );
+            {
+                type: fullType,
+                toString: () => fullType
+            },
+        ) as ActionCreator<Payload>;
     }
 
-    function asyncActionCreators<P, S, E>(type: string, commonMeta?: Object | null,): AsyncActionCreators<P, S, E> {
+    function asyncActionCreators<Params, Result, Error>(
+        type: string, commonMeta?: Meta,
+    ): AsyncActionCreators<Params, Result, Error> {
         return {
             type: base + type,
-            started: actionCreator<P>(`${type}_STARTED`, commonMeta, false),
-            done: actionCreator<SuccessFSAPayload<P, S>>(`${type}_DONE`, commonMeta, false),
-            failed: actionCreator<FailureFSAPayload<P, E>>(`${type}_FAILED`, commonMeta, true),
+            started: actionCreator<Params>(`${type}_STARTED`, commonMeta, false),
+            done: actionCreator<SuccessFSAPayload<Params, Result>>(
+                `${type}_DONE`, commonMeta, false,
+            ),
+            failed: actionCreator<FailureFSAPayload<Params, Error>>(
+                `${type}_FAILED`, commonMeta, true,
+            ),
         };
     }
 

@@ -22,6 +22,38 @@ This library is heavily inpired (with minor adaptations to make it @ngrx/store c
 - [typescript-fsa-reducers](https://github.com/dphilipson/typescript-fsa-reducers) by David Philipson
 
 
+
+## Table of Contents
+
+<!-- toc -->
+
+- [Installation](#installation)
+- [Usage](#usage)
+  * [Basic](#basic)
+  * [Async Action Creators](#async-action-creators)
+  * [Actions With Type Prefix](#actions-with-type-prefix)
+  * [Reducers](#reducers)
+    + [Without Reducers Chaining](#without-reducers-chaining)
+    + [With Reducers Chaining](#with-reducers-chaining)
+- [API](#api)
+  * [Actions](#actions)
+    + [`actionCreatorFactory(prefix?: string, defaultIsError?: Predicate): ActionCreatorFactory`](#actioncreatorfactoryprefix-string-defaultiserror-predicate-actioncreatorfactory)
+    + [`isType(action: Action, actionCreator: ActionCreator): boolean`](#istypeaction-action-actioncreator-actioncreator-boolean)
+  * [Starting a reducer chain](#starting-a-reducer-chain)
+    + [`reducerWithInitialState(initialState)`](#reducerwithinitialstateinitialstate)
+    + [`reducerWithoutInitialState()`](#reducerwithoutinitialstate)
+    + [`upcastingReducer()`](#upcastingreducer)
+  * [Reducer chain methods](#reducer-chain-methods)
+    + [`.case(actionCreator, handler(state, payload) => newState)`](#caseactioncreator-handlerstate-payload--newstate)
+    + [`.caseWithAction(actionCreator, handler(state, action) => newState)`](#casewithactionactioncreator-handlerstate-action--newstate)
+    + [`.cases(actionCreators, handler(state, payload) => newState)`](#casesactioncreators-handlerstate-payload--newstate)
+    + [`.casesWithAction(actionCreators, handler(state, action) => newState)`](#caseswithactionactioncreators-handlerstate-action--newstate)
+    + [`.withHandling(updateBuilder(builder) => builder)`](#withhandlingupdatebuilderbuilder--builder)
+    + [`.default(handler(state, action) => newState)`](#defaulthandlerstate-action--newstate)
+    + [`.build()`](#build)
+
+<!-- tocstop -->
+
 ## Installation
 
 ```
@@ -218,7 +250,9 @@ modifying the callee.
 
 ## API
 
-### `actionCreatorFactory(prefix?: string, defaultIsError?: Predicate): ActionCreatorFactory`
+### Actions
+
+#### `actionCreatorFactory(prefix?: string, defaultIsError?: Predicate): ActionCreatorFactory`
 
 Creates Action Creator factory with optional prefix for action types.
 
@@ -226,7 +260,7 @@ Creates Action Creator factory with optional prefix for action types.
 * `defaultIsError?: Predicate`: Function that detects whether action is error
  given the payload. Default is `payload => payload instanceof Error`.
 
-### `isType(action: Action, actionCreator: ActionCreator): boolean`
+#### `isType(action: Action, actionCreator: ActionCreator): boolean`
 
 Returns `true` if action has the same type as action creator. Defines 
 [Type Guard](https://www.typescriptlang.org/docs/handbook/advanced-types.html#user-defined-type-guards)
@@ -241,41 +275,52 @@ if (isType(action, somethingHappened)) {
 }
 ```
 
-### `reducerWithInitialState(initialState)`
 
-Starts a reducer builder-chain which uses the provided initial state if passed `undefined` as its
-state. For example usage, see the "Usage" section above.
+### Starting a reducer chain
 
-### `reducerWithoutInitialState()`
+#### `reducerWithInitialState(initialState)`
 
-Starts a reducer builder-chain without special logic for an initial state. `undefined` will be
-treated like any other value for the state.
+Starts a reducer builder-chain which uses the provided initial state if passed
+`undefined` as its state. For example usage, see the [Usage](#usage) section
+above.
 
-Redux seems to really want you to provide an initial state for your reducers. Its `createStore` API
-encourages it and `combineReducers` function enforces it. For the Redux author's reasoning behind
-this, see [this thread](https://github.com/reactjs/redux/issues/514). For this reason,
-`reducerWithInitialState` will likely be the more common choice, but the option to not provide an
-initial state is there in case you have some means of composing reducers for which initial state is
-unnecessary.
+#### `reducerWithoutInitialState()`
 
-Note that since the type of the state cannot be inferred from the initial state, it must be provided
-as a type parameter:
-``` javascript
+Starts a reducer builder-chain without special logic for an initial state.
+`undefined` will be treated like any other value for the state.
+
+Redux seems to really want you to provide an initial state for your reducers.
+Its `createStore` API encourages it and `combineReducers` function enforces it.
+For the Redux author's reasoning behind this, see [this
+thread](https://github.com/reactjs/redux/issues/514). For this reason,
+`reducerWithInitialState` will likely be the more common choice, but the option
+to not provide an initial state is there in case you have some means of
+composing reducers for which initial state is unnecessary.
+
+Note that since the type of the state cannot be inferred from the initial state,
+it must be provided as a type parameter:
+
+```javascript
 const reducer = reducerWithoutInitialState<State>()
     .case(setName, setNameHandler)
     .case(addBalance, addBalanceHandler)
     .case(setIsFrozen, setIsFrozenHandler);
 ```
 
-### `upcastingReducer()`
+#### `upcastingReducer()`
 
-Starts a reducer builder-chain which produces a reducer whose return type is a supertype of the
-input state. This is most useful for handling a state which may be in one of several "modes", each
-of which responds differently to actions and can transition to the other modes. Many programs will
-not have a use for this.
+Starts a builder-chain which produces a "reducer" whose return type is a
+supertype of the input state. This is most useful for handling a state which may
+be in one of several "modes", each of which responds differently to actions and
+can transition to the other modes. Many applications will not have a use for
+this.
+
+Note that the function produced is technically not a reducer because the initial
+and updated states are different types.
 
 Example usage:
-``` ts
+
+```javascript
 type State = StoppedState | RunningState;
 
 interface StoppedState {
@@ -286,6 +331,8 @@ interface StartedState {
     type: "STARTED";
     count: number;
 }
+
+const INITIAL_STATE: State = { type: "STOPPED" };
 
 const startWithCount = actionCreator<number>("START_WITH_COUNT");
 const addToCount = actionCreator<number>("ADD_TO_COUNT");
@@ -310,7 +357,7 @@ const startedReducer = upcastingReducer<StartedState, State>()
     .case(addToCount, addToCountHandler)
     .case(stop, stopHandler);
 
-function reducer(state: State, action: Action): State {
+function reducer(state = INITIAL_STATE, action: Redux.Action): State {
     if (state.type === "STOPPED") {
         return stoppedReducer(state, action);
     } else if (state.type === "STARTED") {
@@ -319,6 +366,138 @@ function reducer(state: State, action: Action): State {
         throw new Error("Unknown state");
     }
 }
+```
+
+### Reducer chain methods
+
+#### `.case(actionCreator, handler(state, payload) => newState)`
+
+Mutates the reducer such that it applies `handler` when passed actions matching
+the type of `actionCreator`. For examples, see [Usage](#usage).
+
+#### `.caseWithAction(actionCreator, handler(state, action) => newState)`
+
+Like `.case()`, except that `handler` receives the entire action as its second
+argument rather than just the payload. This is useful if you want to read other
+properties of the action, such as `meta` or `error`, or if you want to pass the
+entire action unmodified to some other function. For an example, see
+[Usage](#usage).
+
+#### `.cases(actionCreators, handler(state, payload) => newState)`
+
+Like `.case()`, except that multiple action creators may be provided and the
+same handler is applied to all of them. That is,
+
+```javascript
+reducerWithInitialState(initialState).cases(
+    [setName, addBalance, setIsFrozen],
+    handler,
+);
+```
+
+is equivalent to
+
+```javascript
+reducerWithInitialState(initialState)
+    .case(setName, handler)
+    .case(addBalance, handler)
+    .case(setIsFrozen, handler);
+```
+
+Note that the payload passed to the handler may be of the type of any of the
+listed action types' payloads. In TypeScript terms, this means it has type `P1 | P2 | ...`, where `P1, P2, ...` are the payload types of the listed action
+creators.
+
+The payload type is inferred automatically for up to four action types. After
+that, it must be supplied as a type annotation, for example:
+
+```javascript
+reducerWithInitialState(initialState).cases <
+    { documentId: number } >
+    ([
+        selectDocument,
+        editDocument,
+        deleteDocument,
+        sendDocument,
+        archiveDocument,
+    ],
+    handler);
+```
+
+#### `.casesWithAction(actionCreators, handler(state, action) => newState)`
+
+Like `.cases()`, except that the handler receives the entire action as its
+second argument rather than just the payload.
+
+#### `.withHandling(updateBuilder(builder) => builder)`
+
+Convenience method which applies the provided function to the current builder
+and returns the result. Useful if you have a sequence of builder updates (calls
+to `.case()`, etc.) which you want to reuse across several reducers.
+
+#### `.default(handler(state, action) => newState)`
+
+Produces a reducer which applies `handler` when no previously added `.case()`,
+`.caseWithAction()`, etc. matched. The handler is similar to the one in
+`.caseWithAction()`. Note that `.default()` ends the chain and internally does
+the same as [`.build()`](#build), because it is not intended that the chain be
+mutated after calling `.default()`.
+
+This is useful if you have a "delegate" reducer that should be called on any
+action after handling a few specific actions in the parent.
+
+```ts
+const NESTED_STATE = {
+    someProp: "hello",
+};
+
+const nestedReducer = reducerWithInitialState(NESTED_STATE)
+    .case(...);
+
+const INITIAL_STATE = {
+    someOtherProp: "world"
+    nested: NESTED_STATE
+};
+
+const reducer = reducerWithInitialState(INITIAL_STATE)
+    .case(...)
+    .default((state, action) => ({
+        ...state,
+        nested: nestedReducer(state.nested, action),
+    }));
+```
+
+#### `.build()`
+
+Returns a plain reducer function whose behavior matches the current state of the
+reducer chain. Further updates to the chain (through calls to `.case()`) will
+have no effect on this function.
+
+There are two reasons you may want to do this:
+
+1.  **You want to ensure that the reducer is not modified further**
+
+    Calling `.build()` is an example of defensive coding. It prevents someone
+    from causing confusing behavior by importing your reducer in an unrelated
+    file and adding cases to it.
+
+2.  **You want your package to export a reducer, but not have its types depend
+    on `typescript-fsa-reducers`**
+
+    If the code that defines a reducer and the code that uses it reside in
+    separate NPM packages, you may run into type errors since the exported
+    reducer has type `ReducerBuilder`, which the consuming package does not
+    recognize unless it also depends on `typescript-fsa-reducers`. This is
+    avoided by returning a plain function instead.
+
+Example usage:
+
+```javascript
+const reducer = reducerWithInitialState(INITIAL_STATE)
+    .case(setName, setNameHandler)
+    .case(addBalance, addBalanceHandler)
+    .case(setIsFrozen, setIsFrozenHandler)
+    .build();
 ```
 
 [npm-image]: https://badge.fury.io/js/ngrx-store-fsa-helpers.svg
